@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATLA: Interactive Threat Detection Framework</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Slate & Azure -->
+    <!-- Application Structure Plan: The application is structured as an interactive dashboard centered around the ATLA end-to-end pipeline. The primary navigation is a visual, clickable flowchart of the pipeline. Clicking a stage in the flowchart populates a dynamic content pane with detailed explanations, abstracting complexity and allowing users to explore the system's architecture step-by-step. Below this, a grid of 'Key Innovations' cards allows thematic exploration of cross-cutting concerns like adversarial robustness and explainability. Finally, a mock 'Analyst Dashboard' section with an interactive Chart.js visualization makes the concept of the final product tangible. This layered, task-oriented structure was chosen to make a complex, multi-stage technical plan digestible and engaging for both technical and strategic audiences, prioritizing user-driven exploration over a linear text-based format. -->
+    <!-- Visualization & Content Choices: 
+        1. Report Info: The end-to-end pipeline diagram. Goal: Organize/Navigate. Viz/Method: Interactive flowchart built with HTML/Tailwind divs and CSS arrows. Interaction: Clicking a node updates a central content pane. Justification: This is the application's core navigation, making the system's architecture intuitive and explorable. Using HTML/CSS instead of a static image ensures responsiveness and interactivity. No SVG/Mermaid used.
+        2. Report Info: Key extension strategies (ATT&CK, Robustness, etc.). Goal: Inform/Compare. Viz/Method: A responsive grid of styled 'cards'. Interaction: Click-to-reveal more details. Justification: Provides a high-level overview of the project's core innovations, allowing users to dive into topics of interest.
+        3. Report Info: Visual Dashboards concept. Goal: Demonstrate/Change. Viz/Method: An interactive line chart (Chart.js Canvas) showing mock anomaly scores. Interaction: Buttons to dynamically update the chart data to show different scenarios (e.g., normal vs. attack traffic) and a hover-to-view details feature. Justification: This makes the abstract idea of a 'visual dashboard' concrete and showcases the dynamic nature of the proposed system's output. No SVG/Mermaid used.
+        4. Report Info: ATT&CK Mapping. Goal: Relate. Viz/Method: A dynamic bar chart (Chart.js Canvas) that appears alongside the main anomaly chart. Interaction: The bar chart updates based on the scenario selected for the line chart. Justification: Visually connects a detected anomaly spike to its potential threat intelligence context (ATT&CK tactics), a core feature of the ATLA framework. No SVG/Mermaid used.
+        5. Report Info: Analyst Co-Pilot. Goal: Explain/Summarize. Viz/Method: A button triggers a call to the Gemini API. Interaction: On click, generates a natural language threat summary based on the selected scenario. Justification: This demonstrates the "Analyst-in-the-loop" feature, showing how LLMs can translate complex data into actionable intelligence.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .pipeline-node {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .pipeline-node:hover, .pipeline-node.active {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border-color: #3b82f6; /* blue-500 */
+        }
+        .pipeline-arrow {
+            position: relative;
+            width: 1.5rem; /* w-6 */
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .pipeline-arrow::after {
+            content: '→';
+            font-size: 2rem; /* text-3xl */
+            color: #9ca3af; /* gray-400 */
+        }
+        @media (max-width: 1024px) {
+            .pipeline-arrow {
+                width: 100%;
+                height: 2rem; /* h-8 */
+            }
+            .pipeline-arrow::after {
+                content: '↓';
+            }
+        }
+        .innovation-card {
+            transition: all 0.3s ease;
+        }
+        .innovation-card:hover {
+            transform: scale(1.03);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .loader {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #3b82f6; /* Blue */
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl font-bold text-slate-900">ATLA Threat Detection Framework</h1>
+            <p class="mt-4 text-lg text-slate-600 max-w-3xl mx-auto">An interactive guide to the AI-powered pipeline for detecting advanced cyber threats in system logs.</p>
+        </header>
+
+        <main>
+            <!-- Section 1: Interactive Pipeline -->
+            <section id="pipeline" class="mb-16">
+                <div class="bg-white rounded-xl shadow-lg p-6 md:p-8">
+                    <h2 class="text-2xl md:text-3xl font-bold text-center mb-2 text-slate-900">End-to-End Threat Detection Pipeline</h2>
+                    <p class="text-center text-slate-500 mb-8">Click on any stage to explore its components, objectives, and innovations.</p>
+
+                    <div class="flex flex-col lg:flex-row items-center justify-center gap-4 lg:gap-0 mb-8" id="pipeline-diagram">
+                    </div>
+
+                    <div id="pipeline-details" class="bg-slate-100 rounded-lg p-6 min-h-[200px] transition-all duration-300">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: Key Innovations -->
+            <section id="innovations" class="mb-16">
+                <h2 class="text-2xl md:text-3xl font-bold text-center mb-8 text-slate-900">Core Innovations & Extensions</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="innovations-grid">
+                </div>
+            </section>
+
+            <!-- Section 3: Analyst Dashboard Mockup -->
+            <section id="dashboard">
+                <div class="bg-white rounded-xl shadow-lg p-6 md:p-8">
+                    <h2 class="text-2xl md:text-3xl font-bold text-center mb-2 text-slate-900">Simulated Analyst Dashboard</h2>
+                    <p class="text-center text-slate-500 mb-8">This interactive mockup demonstrates how an analyst would visualize and triage threats within ATLA.</p>
+                    
+                    <div class="text-center mb-6">
+                        <span class="isolate inline-flex rounded-md shadow-sm">
+                            <button type="button" id="btn-normal" class="dashboard-btn relative inline-flex items-center rounded-l-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-10">Normal Traffic</button>
+                            <button type="button" id="btn-anomaly" class="dashboard-btn relative -ml-px inline-flex items-center bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-10">Anomaly Detected</button>
+                            <button type="button" id="btn-attack" class="dashboard-btn relative -ml-px inline-flex items-center rounded-r-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-10">Sustained Attack</button>
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+                        <div class="lg:col-span-3">
+                             <h3 class="text-xl font-semibold text-center mb-4 text-slate-800">System Anomaly Score Over Time</h3>
+                            <div class="chart-container">
+                                <canvas id="anomalyChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="lg:col-span-2 mt-8 lg:mt-0">
+                             <h3 class="text-xl font-semibold text-center mb-4 text-slate-800">Threat Intelligence Context</h3>
+                            <div class="bg-slate-100 p-4 rounded-lg min-h-[350px]">
+                                <p id="attack-info" class="text-center text-slate-500 mt-16">Select a scenario to view threat intelligence.</p>
+                                <div class="chart-container" id="attack-chart-container" style="height: 350px; display: none;">
+                                     <canvas id="attackChart"></canvas>
+                                </div>
+                            </div>
+                             <div class="mt-6">
+                                <h3 class="text-xl font-semibold text-center mb-4 text-slate-800">✨ AI Co-Pilot Analysis</h3>
+                                <div id="copilot-analysis" class="bg-slate-100 p-4 rounded-lg min-h-[200px]">
+                                    <div class="text-center">
+                                        <button id="generate-report-btn" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed">
+                                            Generate Threat Report
+                                        </button>
+                                    </div>
+                                    <div id="loader" class="hidden">
+                                        <div class="loader"></div>
+                                        <p class="text-center text-slate-500">Generating analysis...</p>
+                                    </div>
+                                    <div id="report-output" class="mt-4 hidden">
+                                        <pre class="whitespace-pre-wrap text-sm bg-slate-800 text-white p-4 rounded-md font-mono"></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="text-center mt-12 py-4 border-t border-slate-200">
+            <p class="text-sm text-slate-500">&copy; 2025 ATLA Project. An interactive visualization of the ConceptUML extension strategy.</p>
+        </footer>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            
+            const pipelineData = [
+                { id: 'ingestion', title: 'Log Ingestion', content: '<strong>Objective:</strong> Aggregate diverse log sources. <br><strong>Details:</strong> The pipeline starts by ingesting logs from multiple sources, including BGL system logs, syslog, and cloud platforms like AWS CloudTrail. This ensures a comprehensive view of system activity.' },
+                { id: 'parsing', title: 'Log Parsing', content: '<strong>Objective:</strong> Structure raw log text. <br><strong>Method:</strong> Utilizes the <strong>Drain</strong> algorithm to parse unstructured log messages into structured events, extracting log templates and dynamic parameters. This is a critical prerequisite for semantic analysis.' },
+                { id: 'features', title: 'Feature Extraction', content: '<strong>Objective:</strong> Isolate key data points. <br><strong>Details:</strong> From structured logs, we extract key features for modeling, including the static log template ID, the component generating the log (e.g., KERNEL, RAS), and the log severity level (e.g., INFO, WARNING, FATAL).' },
+                { id: 'representation', title: 'Representation Learning', content: '<strong>Objective:</strong> Discover latent concepts. <br><strong>Method:</strong> Log templates are converted into rich vector representations using advanced topic modeling (<strong>BERTopic</strong>). This groups semantically similar events into "concepts," revealing the underlying system behavior.' },
+                { id: 'sequencing', title: 'Sequence Modeling', content: '<strong>Objective:</strong> Model normal behavior flow. <br><strong>Method:</strong> Normal sequences of log "concepts" are modeled using <strong>Hidden Markov Models (HMM)</strong> or <strong>LSTMs</strong>. The system learns the normal transition probabilities between different system states.' },
+                { id: 'detection', title: 'Anomaly Detection', content: '<strong>Objective:</strong> Identify suspicious sequences. <br><strong>Method:</strong> Log sequences with a low probability under the trained HMM/LSTM model are flagged as anomalous. The system detects not just bad events, but an abnormal *flow* of events.' },
+                { id: 'mapping', title: 'Threat Mapping', content: '<strong>Objective:</strong> Contextualize anomalies. <br><strong>Details:</strong> Flagged anomalies are automatically mapped to threat intelligence frameworks like <strong>MITRE ATT&CK, CWE, and CAPEC</strong>. This translates a statistical anomaly into a potential security incident with context.' },
+                { id: 'analyst', title: 'Analyst Co-Pilot', content: '<strong>Objective:</strong> Augment human analysis. <br><strong>Method:</strong> An LLM-powered assistant provides natural language summaries, severity assessments, and remediation advice. An analyst feedback loop enables continuous model refinement (Human-in-the-Loop).' },
+            ];
+
+            const innovationsData = [
+                { icon: '🛡️', title: 'ATT&CK & CWE Integration', content: 'Anomalies are not just flagged; they are automatically mapped to known adversary tactics (ATT&CK), software weaknesses (CWE), and attack patterns (CAPEC). This provides immediate, actionable context for security analysts.' },
+                { icon: '🤺', title: 'Adversarial Robustness', content: 'Inspired by AAR-Log, the system is hardened against adversarial attacks. By using ensemble models and adversarial training, we make it significantly harder for attackers to craft evasive log sequences to bypass detection.' },
+                { icon: '🔄', title: 'Concept Drift Handling', content: 'Systems and logs evolve. ATLA incorporates online learning mechanisms (Online NMF, Bayesian HMM updates) to adapt to these changes in real-time, preventing model decay and ensuring long-term accuracy.' },
+                { icon: '📊', title: 'Interactive Dashboards', content: 'The final output is not a text file but a rich, visual dashboard (like the simulation below). Analysts can explore anomaly scores over time, view concept clusters, and drill down into ATT&CK heatmaps.' },
+                { icon: '🤖', title: 'Explainability & Feedback', content: 'The Security Co-Pilot uses LLMs to summarize complex alerts in plain English. More importantly, it provides a feedback loop for analysts to confirm or reject findings, continuously fine-tuning the AI model.' },
+                { icon: '🌍', title: 'Real-World Generalization', content: 'The model isn\'t just trained on BGL logs. It is evaluated against a wide range of datasets (HDFS, Thunderbird, etc.) and simulated IoT/malware logs to ensure it can generalize to diverse, real-world environments.' },
+            ];
+
+            const pipelineDiagram = document.getElementById('pipeline-diagram');
+            const pipelineDetails = document.getElementById('pipeline-details');
+            const innovationsGrid = document.getElementById('innovations-grid');
+
+            pipelineData.forEach((item, index) => {
+                const node = document.createElement('div');
+                node.className = 'pipeline-node flex-1 bg-white border-2 border-slate-300 rounded-lg p-4 text-center min-w-[150px] max-w-[200px]';
+                node.dataset.id = item.id;
+                node.innerHTML = `<h3 class="font-semibold text-slate-800">${item.title}</h3>`;
+                node.addEventListener('click', () => {
+                    document.querySelectorAll('.pipeline-node').forEach(n => n.classList.remove('active'));
+                    node.classList.add('active');
+                    const detail = pipelineData.find(d => d.id === item.id);
+                    pipelineDetails.innerHTML = `<h3 class="font-bold text-lg mb-2 text-slate-900">${detail.title}</h3><p class="text-slate-700">${detail.content}</p>`;
+                });
+                pipelineDiagram.appendChild(node);
+
+                if (index < pipelineData.length - 1) {
+                    const arrow = document.createElement('div');
+                    arrow.className = 'pipeline-arrow';
+                    pipelineDiagram.appendChild(arrow);
+                }
+            });
+
+            innovationsData.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'innovation-card bg-white rounded-xl shadow-md p-6 flex flex-col items-center text-center';
+                card.innerHTML = `<div class="text-4xl mb-4">${item.icon}</div><h3 class="font-bold text-lg mb-2 text-slate-900">${item.title}</h3><p class="text-slate-600">${item.content}</p>`;
+                innovationsGrid.appendChild(card);
+            });
+            
+            document.querySelector('.pipeline-node').click();
+
+            const anomalyCtx = document.getElementById('anomalyChart').getContext('2d');
+            const attackCtx = document.getElementById('attackChart').getContext('2d');
+            const generateReportBtn = document.getElementById('generate-report-btn');
+            const loader = document.getElementById('loader');
+            const reportOutput = document.getElementById('report-output');
+            const reportPre = reportOutput.querySelector('pre');
+
+            let anomalyChart, attackChart;
+            let currentScenario = 'normal';
+
+            const chartData = {
+                labels: Array.from({length: 30}, (_, i) => `T-${30-i}`),
+                normal: {
+                    scores: Array.from({length: 30}, () => Math.random() * 0.1),
+                    attackData: { labels: [], data: [] },
+                    info: 'System operating within normal parameters. No significant threats detected.'
+                },
+                anomaly: {
+                    scores: [...Array.from({length: 25}, () => Math.random() * 0.1), Math.random() * 0.3 + 0.6, Math.random() * 0.2 + 0.3, ...Array.from({length: 3}, () => Math.random() * 0.1)],
+                    attackData: {
+                        labels: ['Credential Access', 'Discovery', 'Execution'],
+                        data: [3, 2, 1]
+                    },
+                    info: 'A significant anomaly spike detected. Potential T1003: OS Credential Dumping followed by T1057: Process Discovery.'
+                },
+                attack: {
+                    scores: [...Array.from({length: 15}, () => Math.random() * 0.1), ...Array.from({length: 15}, (v,i) => Math.min(0.95, (Math.random() * 0.2 + 0.2) + (i*0.05)))],
+                     attackData: {
+                        labels: ['Persistence', 'Lateral Movement', 'Impact', 'Execution', 'Defense Evasion'],
+                        data: [8, 7, 5, 5, 4]
+                    },
+                    info: 'Sustained high anomaly scores indicate an active, ongoing attack. Multiple TTPs detected, suggesting lateral movement and data exfiltration attempts.'
+                }
+            };
+
+            function createOrUpdateAnomalyChart(data) {
+                if (anomalyChart) {
+                    anomalyChart.data.datasets[0].data = data;
+                    anomalyChart.update();
+                } else {
+                    anomalyChart = new Chart(anomalyCtx, {
+                        type: 'line',
+                        data: {
+                            labels: chartData.labels,
+                            datasets: [{
+                                label: 'Anomaly Score',
+                                data: data,
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                fill: true,
+                                tension: 0.4,
+                                pointBackgroundColor: '#3b82f6',
+                            }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            scales: { y: { beginAtZero: true, max: 1.0, title: { display: true, text: 'Likelihood of Anomaly' } }, x: { title: { display: true, text: 'Time (Minutes Ago)' } } },
+                            plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => `Score: ${context.parsed.y.toFixed(3)}` } } }
+                        }
+                    });
+                }
+            }
+
+            function createOrUpdateAttackChart(data) {
+                const attackInfoEl = document.getElementById('attack-info');
+                const attackChartContainerEl = document.getElementById('attack-chart-container');
+                if (attackChart) { attackChart.destroy(); attackChart = null; }
+                if (data.labels.length > 0) {
+                    attackInfoEl.style.display = 'none';
+                    attackChartContainerEl.style.display = 'block';
+                    attackChart = new Chart(attackCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: data.labels,
+                            datasets: [{
+                                label: 'TTP Count',
+                                data: data.data,
+                                backgroundColor: ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6'],
+                                borderColor: '#ffffff', borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                            scales: { x: { beginAtZero: true, title: { display: true, text: 'Frequency' } } },
+                            plugins: { legend: { display: false }, title: { display: false } }
+                        }
+                    });
+                } else {
+                     attackInfoEl.style.display = 'block';
+                     attackChartContainerEl.style.display = 'none';
+                }
+            }
+            
+            function updateDashboard(scenario) {
+                currentScenario = scenario;
+                document.querySelectorAll('.dashboard-btn').forEach(btn => {
+                    btn.classList.remove('bg-blue-500', 'text-white');
+                    btn.classList.add('bg-white', 'text-gray-900');
+                });
+                document.getElementById(`btn-${scenario}`).classList.add('bg-blue-500', 'text-white');
+                document.getElementById(`btn-${scenario}`).classList.remove('bg-white', 'text-gray-900');
+
+                const data = chartData[scenario];
+                createOrUpdateAnomalyChart(data.scores);
+                createOrUpdateAttackChart(data.attackData);
+                document.getElementById('attack-info').innerText = data.info;
+                
+                reportOutput.classList.add('hidden');
+                generateReportBtn.classList.remove('hidden');
+                if (scenario === 'normal') {
+                    generateReportBtn.disabled = true;
+                } else {
+                    generateReportBtn.disabled = false;
+                }
+            }
+
+            async function handleGenerateReport() {
+                const scenarioInfo = chartData[currentScenario];
+                if (!scenarioInfo || scenarioInfo.attackData.labels.length === 0) {
+                    reportPre.textContent = "No threat data available to generate a report.";
+                    reportOutput.classList.remove('hidden');
+                    return;
+                }
+
+                generateReportBtn.classList.add('hidden');
+                loader.classList.remove('hidden');
+                reportOutput.classList.add('hidden');
+
+                const ttpList = scenarioInfo.attackData.labels.join(', ');
+                const prompt = `You are a senior cybersecurity analyst providing a briefing. A threat has been detected based on system log analysis.
+                
+                SITUATION: ${scenarioInfo.info}
+                INFERRED MITRE ATT&CK TACTICS: ${ttpList}
+
+                Based *only* on the information above, generate a concise threat report in Markdown format. The report must include these exact sections:
+                1.  **Executive Summary:** A brief, high-level summary of the threat.
+                2.  **Potential Impact:** A short assessment of what could happen if this threat is not addressed.
+                3.  **Recommended Actions:** A numbered list of 3-5 prioritized, actionable steps for a security operations team to take immediately.`;
+
+                try {
+                    const apiKey = ""; 
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                    
+                    const payload = {
+                        contents: [{
+                            role: "user",
+                            parts: [{ text: prompt }]
+                        }]
+                    };
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts.length > 0) {
+                        const text = result.candidates[0].content.parts[0].text;
+                        reportPre.textContent = text;
+                    } else {
+                        throw new Error("Received an empty or invalid response from the API.");
+                    }
+
+                } catch (error) {
+                    console.error("Error calling Gemini API:", error);
+                    reportPre.textContent = `Error generating report: ${error.message}\n\nPlease check the browser console for more details. The API might be temporarily unavailable or an API key may be required.`;
+                } finally {
+                    loader.classList.add('hidden');
+                    reportOutput.classList.remove('hidden');
+                }
+            }
+            
+            document.getElementById('btn-normal').addEventListener('click', () => updateDashboard('normal'));
+            document.getElementById('btn-anomaly').addEventListener('click', () => updateDashboard('anomaly'));
+            document.getElementById('btn-attack').addEventListener('click', () => updateDashboard('attack'));
+            generateReportBtn.addEventListener('click', handleGenerateReport);
+
+            updateDashboard('normal');
+        });
+    </script>
+</body>
+</html>
